@@ -6,6 +6,8 @@ interface IUser extends Document {
     lastName: string, 
     passwordHash: string,
     role: 'user' | 'admin',
+    profile: string | undefined,
+    publicId: string | undefined,
     tokenVersion: number,
     isEmailVerified: boolean,
     passwordResetToken: string | undefined,
@@ -46,6 +48,14 @@ const userSchema: Schema<IUser>  = new Schema<IUser>({
         type: String,
         enum: ['user', 'admin'],
         default: 'user'
+    },
+    profile: {
+        type: String,
+        default: null
+    },
+    publicId: {
+        type: String,
+        default: null
     },
     tokenVersion: {
         type: Number,

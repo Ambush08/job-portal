@@ -24,8 +24,10 @@ app.use('/api/v1', jobRouter)
 
 const port = Number(process.env.PORT);
 
+//Connect to DB
 await connectDB();
 
+//Start server
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`)
 });

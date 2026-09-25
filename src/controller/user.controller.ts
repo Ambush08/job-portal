@@ -13,6 +13,13 @@ import {
 } from "../utils/tokens.js";
 import crypto from "crypto";
 import { verify } from "otplib";
+import { uploadToCloudinary } from "../services/cloudinaryUpload.service.js";
+import multer from "multer";
+import { RequestAuth } from "../middleware/userAuth.js";
+import deleteFromCloudinary from "../services/delete.service.js";
+import deleteFromLocal from "../services/deleteFromDisk.js";
+import fs from 'fs'
+import { profile } from "console";
 
 dotenv.config();
 
@@ -162,7 +169,7 @@ export const login = async (req: Request, res: Response) => {
 
     if (!user) {
       return res.status(404).json({
-        meesage: "User not found",
+        message: "User not found",
       });
     }
 
@@ -198,8 +205,14 @@ export const login = async (req: Request, res: Response) => {
       //Verify the 2FA code
       const result = await verify({
         token: twoFactorCode,
-        secret: user.twoFactorSecret
+        secret: user.twoFactorSecret,
       });
+
+      if (!result.valid) {
+        return res.status(401).json({
+          message: "Invalid or expired 2FA code",
+        });
+      }
     }
 
     const refreshToken = createRefreshToken(user.id, user.tokenVersion);
@@ -225,10 +238,11 @@ export const login = async (req: Request, res: Response) => {
         id: user.id,
         email: user.email,
         firstName: user.firstName,
-        lastNmae: user.lastName,
+        lastName: user.lastName,
         role: user.role,
         isEmailVerified: user.isEmailVerified,
         isTwoFactorEnabled: user.isTwoFactorEnabled,
+        profile: user.profile
       },
       accessToken,
     });
@@ -281,7 +295,7 @@ export const refreshTokenHandler = async (req: Request, res: Response) => {
       user.tokenVersion,
     );
 
-    res.cookie("refreshToke", newRefreshToken, {
+    res.cookie("refreshToken", newRefreshToken, {
       httpOnly: true,
       secure: isProd,
       sameSite: "lax",
@@ -299,7 +313,7 @@ export const refreshTokenHandler = async (req: Request, res: Response) => {
         isEmailVerified: user.isEmailVerified,
         isTwoFactorEnabled: user.isTwoFactorEnabled,
       },
-      accessToke: newAccessToken,
+      accessToken: newAccessToken,
     });
   } catch (error) {
     console.error(error);
@@ -348,8 +362,8 @@ export const forgotPassword = async (req: Request, res: Response) => {
     const user = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
-      return res.status(404).json({
-        Message:
+      return res.status(200).json({
+        message:
           "If an account with this email exists, a link has been sent to your email. Click the link to reset your password.",
       });
     }
@@ -380,7 +394,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
     );
 
     return res.json({
-      Message:
+      message:
         "If an account with this email exists, a link has been sent to your email. Click the link to reset your password.",
     });
   } catch (error) {
@@ -408,7 +422,7 @@ export const resetPassword = async (req: Request, res: Response) => {
       });
     }
 
-    const hashToken = crypto.createHash("SHA256").update(token).digest("hex");
+    const hashToken = crypto.createHash("sha256").update(token).digest("hex");
 
     const user = await User.findOne({
       passwordResetToken: hashToken,
@@ -433,6 +447,63 @@ export const resetPassword = async (req: Request, res: Response) => {
 
     return res.status(200).json({
       message: "Password reset successfully",
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+};
+
+//Upload Profile image
+export const uploadProfileImage = async (req: RequestAuth, res: Response) => {
+  try {
+    //Check if image is missing
+    if (!req.file) {
+      return res.status(400).json({
+        message: "File is missing",
+      });
+    }
+
+    //Find user
+    const user = await User.findById(req.userId);
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    const oldPublicId = user.publicId;
+
+    //Upload file to cloudinary
+    const { url, publicId } = await uploadToCloudinary(req.file.path);
+
+    user.profile = url;
+    user.publicId = publicId;
+
+    try {
+      await user.save();
+    } catch (error) {
+      await deleteFromCloudinary(publicId).catch(() => {});
+      throw new Error("Error occurred while saving file to database", {
+        cause: error,
+      });
+    }
+
+    //Delete the file from local storage
+    await deleteFromLocal(req.file.path);
+
+    // Delete old image from Cloudinary if one exists
+    if (oldPublicId) {
+      await deleteFromCloudinary(oldPublicId).catch((err) =>
+        console.error("Failed to delete old image:", err),
+      );
+    }
+
+    return res.status(200).json({
+      message: "Profile updated successfully",
     });
   } catch (error) {
     console.error(error);

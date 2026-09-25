@@ -160,7 +160,7 @@ export const verify2FAHandler = async (req: RequestAuth, res: Response) => {
 
     const { code } = req.body as {code?: string};
 
-    if(!code){
+    if(!code || !/^\d{6}$/.test(code)){
         return res.status(400).json({
             message: "Invalid or missing code"
         });
@@ -200,5 +200,60 @@ export const verify2FAHandler = async (req: RequestAuth, res: Response) => {
         return res.status(500).json({
             message: "Internal server error"
         })
+    }
+}
+
+
+export const toggle2FAHandler = async (req: RequestAuth, res: Response) => {
+
+    if(!req.userId){
+        return res.status(401).json({
+            message: "Unauthorized"
+        });
+    }
+
+    const { code } = req.body as {code?: string};
+
+    if(!code || !/^\d{6}$/.test(code)){
+        return res.status(400).json({
+            message: "Missing or invalid code"
+        });
+    }
+
+    try {
+        const user = await User.findById(req.userId);
+
+        if(!user){
+            return res.status(404).json({
+                message: "User not found"
+            });
+        }
+
+        if(!user.twoFactorSecret){
+            return res.status(401).json({
+                message: "Unauthorized"
+            });
+        }
+
+        const result = await verify({token: code, secret: user.twoFactorSecret});
+
+        if(!result.valid){
+            return res.status(401).json({
+                message: "Forbidden"
+            })
+        }
+
+        user.isTwoFactorEnabled = !user.isTwoFactorEnabled;
+
+        await user.save();
+
+        return res.status(200).json({
+            message: `2FA ${user.isTwoFactorEnabled? 'enabled' : 'disabled'}`
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            message: "Internal server error"
+        });
     }
 }

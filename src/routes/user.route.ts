@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { forgotPassword, handleVerifyEmail, login, logout, refreshTokenHandler, registerUser, resetPassword } from "../controller/user.controller.js";
+import { forgotPassword, handleVerifyEmail, login, logout, refreshTokenHandler, registerUser, resetPassword, uploadProfileImage } from "../controller/user.controller.js";
 import { googleAuthStartHandler, handleGoogleCallback } from "../controller/google.controller.js";
-import { twoFASetupHandler, verify2FAHandler } from "../controller/2fa.controller.js";
+import { toggle2FAHandler, twoFASetupHandler, verify2FAHandler } from "../controller/2fa.controller.js";
 import { userAuth } from "../middleware/userAuth.js";
 
 const router = Router();
@@ -39,5 +39,8 @@ router.post('/2fa/setup', userAuth, twoFASetupHandler);
 
 //Verify 2FA handler 
 router.post('/2fa/verify', userAuth, verify2FAHandler);
+
+//Toogle 2FA
+router.post('/2fa/toggle', userAuth, toggle2FAHandler);
 
 export default router;

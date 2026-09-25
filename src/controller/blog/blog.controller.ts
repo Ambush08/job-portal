@@ -8,9 +8,9 @@ import deleteFromCloudinary from "../../services/delete.service.js";
 import { IUser } from "../../model/user.model.js";
 
 type Result = {
-    url: string;
-    publicId: string
-}
+  url: string;
+  publicId: string;
+};
 
 //Create blog
 export const createBlog = async (req: RequestAuth, res: Response) => {
@@ -56,8 +56,8 @@ export const createBlog = async (req: RequestAuth, res: Response) => {
   const { title, snippet, body, category, status } = result.data;
 
   try {
-    coverResult = await uploadToCloudinary(coverImage.path)
-    await deleteFromLocal(coverImage.path)
+    coverResult = await uploadToCloudinary(coverImage.path);
+    await deleteFromLocal(coverImage.path);
     /*galleryResults = await Promise.all(
       galleryImages.map(async (file) => {
         const result = await uploadToCloudinary(file.path);
@@ -130,25 +130,28 @@ export const getAllBlogs = async (req: Request, res: Response) => {
 
     const filter = category ? { category } : ({} as any);
 
-    const blogs = await Blog.find(filter).limit(limit).skip(skip).sort({createdAt: -1});
+    const blogs = await Blog.find(filter)
+      .limit(limit)
+      .skip(skip)
+      .sort({ createdAt: -1 });
 
-    if(blogs.length === 0){
-        return res.status(200).json({
-            message: "No blogs at the moment"
-        });
+    if (blogs.length === 0) {
+      return res.status(200).json({
+        message: "No blogs at the moment",
+      });
     }
 
     const total = await Blog.countDocuments(filter);
 
     return res.status(200).json({
-        blogs,
-        pagination: {
-            total,
-            page,
-            limit,
-            totalPages: Math.ceil(total / limit)
-        }
-    })
+      blogs,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
     console.error(error);
     return res.status(500).json({
@@ -162,30 +165,33 @@ export const getBlog = async (req: RequestAuth, res: Response) => {
   try {
     const id = req.params.id;
 
-    if(!id){
-        return res.status(400).json({
-            message: "Blog Id is required"
-        });
+    if (!id) {
+      return res.status(400).json({
+        message: "Blog Id is required",
+      });
     }
 
-    const blog = await Blog.findById(id).populate<{postedBy: IUser}>('postedBy', 'firstName lastName');
+    const blog = await Blog.findById(id).populate<{ postedBy: IUser }>(
+      "postedBy",
+      "firstName lastName",
+    );
 
-    if(!blog){
-        return res.status(404).json({
-            message: "Blog not found"
-        })
+    if (!blog) {
+      return res.status(404).json({
+        message: "Blog not found",
+      });
     }
 
     return res.status(200).json({
-        blog: {
-            id: blog.id,
-            title: blog.title,
-            snippete: blog.snippet,
-            body: blog.body,
-            category: blog.category,
-            postedBy: `${blog.postedBy.firstName} ${blog.postedBy.lastName}`
-        }
-    })
+      blog: {
+        id: blog.id,
+        title: blog.title,
+        snippete: blog.snippet,
+        body: blog.body,
+        category: blog.category,
+        postedBy: `${blog.postedBy.firstName} ${blog.postedBy.lastName}`,
+      },
+    });
   } catch (error) {
     console.error(error);
     return res.status(500).json({
@@ -196,138 +202,155 @@ export const getBlog = async (req: RequestAuth, res: Response) => {
 
 //Update a blog post
 export const updateBlog = async (req: RequestAuth, res: Response) => {
+  const coverImage = req.file;
 
-    const coverImage = req.file;
+  if (!coverImage) {
+    return res.status(400).json({
+      message: "Cover image required",
+    });
+  }
 
-    if(!coverImage){
-        return res.status(400).json({
-            message: "Missing cover image"
-        });
-    }
+  const result = await updateBlogShema.safeParse(req.body);
 
-    const result = updateBlogShema.safeParse(req.body);
+  if (!result.success) {
+    await deleteFromLocal(coverImage.path);
+    return res.status(400).json({
+      message: "Invalid data",
+      error: result.error.flatten(),
+    });
+  }
 
-    if(!result.success){
-        return res.status(400).json({
-            message: "Invalid data",
-            error: result.error.flatten()
-        });
-    }
+  const { title, snippet, body, category, status } = result.data;
 
-    const {title, snippet, body, status, category} = result.data;
-
-    let newCoverResult:  {url: string, publicId: string} | undefined;
+  let newCoverResults: { url: string; publicId: string } | undefined;
   try {
     const id = req.params.id;
 
-    if(!id){
-        return res.status(400).json({
-            message: "Blog Id is required"
-        });
+    if (!id) {
+      if (coverImage) await deleteFromLocal(coverImage.path);
+      return res.status(400).json({
+        message: "Blog Id is requird",
+      });
     }
 
     const blog = await Blog.findById(id);
 
-    if(!blog){
-        await deleteFromLocal(coverImage.path);
-        return res.status(404).json({
-            message: "Blog not found"
-        });
+    //Find blog by id
+    if (!blog) {
+      if (coverImage) await deleteFromLocal(coverImage.path);
+      return res.status(404).json({
+        message: "Blog not found",
+      });
     }
 
-    if(blog.postedBy.toString() !== req.userId){
-        return res.status(403).json({
-            message: "You are not allowed to edit othis blog"
-        });
+    //Check if user is owner of blog
+    if (blog.postedBy.toString() !== req.userId) {
+      if (coverImage) await deleteFromLocal(coverImage.path);
+      return res.status(403).json({
+        message: "You do not have the permission to delete this blog",
+      });
     }
 
+    //Get th publicId of the blog cover image
     const oldPublicId = blog.publicId;
 
-    newCoverResult = await uploadToCloudinary(coverImage.path);
-    await deleteFromLocal(coverImage.path);
+    let updateBlog: Record<string, unknown> = {
+      title,
+      snippet,
+      body,
+      category,
+      status,
+    };
 
-    const updatedBlog = await Blog.findByIdAndUpdate(
-        id,
-        {
-            title,
-            snippet,
-            body,
-            category,
-            status,
-            coverImage: newCoverResult.url,
-            publicId: newCoverResult.publicId
-        }
-    );
+    //Uplopad cover image to cloudinary
+    if (coverImage) {
+      newCoverResults = await uploadToCloudinary(coverImage.path);
+      updateBlog.coverImage = newCoverResults.url;
+      updateBlog.publicId = newCoverResults.publicId;
+    }
 
-    if(newCoverResult && oldPublicId){
-        await deleteFromCloudinary(oldPublicId);
+    const updatedBlog = await Blog.findByIdAndUpdate(id, updateBlog, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (newCoverResults && oldPublicId) {
+      await deleteFromCloudinary(oldPublicId).catch((err) => {
+        console.error("Failed to delete cover image from cloudinary:", err);
+      });
     }
 
     return res.status(200).json({
-        message: "Blog updated successfully",
-        blog: {
-            id: blog.id,
-            title: blog.title,
-            snippet: blog.snippet,
-            bosy: blog.body,
-            coverImage: blog.coverImage,
-            category: blog.category,
-            status: blog.status,
-            postedBy: blog.postedBy
-        }
+      message: "Blog updated successfully",
+      blog: {
+        id: updatedBlog?.id,
+        title: updatedBlog?.title,
+        snippet: updatedBlog?.snippet,
+        body: updatedBlog?.body,
+        coverImage: updatedBlog?.coverImage,
+        category: updatedBlog?.category,
+        status: updatedBlog?.status,
+        postedBy: updatedBlog?.postedBy,
+      }
     });
-
   } catch (error) {
 
     if(coverImage){
-        await deleteFromLocal(coverImage.path).catch(err => console.error(err))
+        await deleteFromLocal(coverImage.path).catch(err => {
+            console.error("Failed to delete cover image from local storage:", err)
+        });
+    }
+
+    if(newCoverResults){
+        await deleteFromCloudinary(newCoverResults.publicId).catch(err => {
+            console.error("Failed to delete cover image from cloudinary:", err)
+        });
     }
 
     console.error(error);
+
     return res.status(500).json({
-      message: "Internal server error",
-    });
+        message: "Internal server error"
+    })
   }
 };
 
 //Delete a blog post
 export const deleteBlog = async (req: RequestAuth, res: Response) => {
   try {
+    const id = req.params.id;
 
-    const id  = req.params.id;
-
-    if(!id){
-        return res.status(400).json({
-            message: "Blog Id is required"
-        });
+    if (!id) {
+      return res.status(400).json({
+        message: "Blog Id is required",
+      });
     }
 
     const blog = await Blog.findById(id);
 
-    if(!blog){
-        return res.status(404).json({
-            message: "Blog not found"
-        });
+    if (!blog) {
+      return res.status(404).json({
+        message: "Blog not found",
+      });
     }
 
-    if(blog.postedBy.toString() !== req.userId){
-        return res.status(403).json({
-            message: "You are not allowed to delete this blog"
-        });
+    if (blog.postedBy.toString() !== req.userId) {
+      return res.status(403).json({
+        message: "You are not allowed to delete this blog",
+      });
     }
 
     const publicId = blog.publicId;
 
     await Blog.findByIdAndDelete(id);
 
-    await deleteFromCloudinary(publicId).catch(err => {
-        console.error("Failed to delete cover image from cloudinary:", err)
+    await deleteFromCloudinary(publicId).catch((err) => {
+      console.error("Failed to delete cover image from cloudinary:", err);
     });
 
     return res.status(200).json({
-        message: "Blog deleted successfully"
-    })
-
+      message: "Blog deleted successfully",
+    });
   } catch (error) {
     console.error(error);
     return res.status(500).json({

@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
+import { IUser } from './user.model.js';
 
 export interface IBlog extends Document {
   title: string;
@@ -8,9 +9,13 @@ export interface IBlog extends Document {
   status: 'draft' | 'published';
   coverImage: string;
   publicId: string;
-  postedBy: Types.ObjectId;
+  postedBy: Types.ObjectId 
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface IBlogPopulated extends Omit<IBlog, 'postedBy'> {
+  postedBy: IUser;
 }
 
 

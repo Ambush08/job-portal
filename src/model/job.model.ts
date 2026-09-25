@@ -1,4 +1,39 @@
-import mongoose, { Schema } from "mongoose";
+import mongoose, { Schema, Types, Document } from "mongoose";
+import { IUser } from "./user.model.js";
+
+export interface IJob extends Document {
+  title: string;
+  location: string;
+  description: string;
+  company: string;
+  workplaceType: "on-site" | "remote" | "hybrid";
+  jobType: "full-time" | "part-time" | "contract" | "internship";
+  status: "open" | "closed";
+  category:
+    | "engineering"
+    | "design"
+    | "it"
+    | "education"
+    | "marketing"
+    | "sales"
+    | "customer-support"
+    | "product"
+    | "operations"
+    | "finance"
+    | "hr"
+    | "other";
+  salaryMin: number;
+  salaryMax: number;
+  postedBy: Types.ObjectId;
+  responsibilities: string[];
+  qualifications: string[];
+  createdAt: Date;
+  updatedAt: Date
+}
+
+export interface IJobPopulated extends Omit<IJob, 'postedBy'> {
+  postedBy: IUser
+}
 
 const jobSchema = new Schema(
   {
@@ -69,9 +104,9 @@ const jobSchema = new Schema(
     qualifications: {
       type: [String],
       required: true,
-    }
+    },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 const Job = mongoose.model("Job", jobSchema);

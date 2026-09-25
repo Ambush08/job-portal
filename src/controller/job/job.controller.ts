@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import { createJobSchema, updateJobSchema } from "./jobSchema.js";
 import type { RequestAuth } from "../../middleware/userAuth.js";
 import { isValidObjectId } from "mongoose";
+import { IUser } from "../../model/user.model.js";
 
 //Create job posting
 export const createJob = async (req: RequestAuth, res: Response) => {
@@ -126,10 +127,10 @@ export const getSingleJob = async (req: RequestAuth, res: Response) => {
   try {
     const id = req.params.id as string;
 
-    const job = (await Job.findById(id).populate(
+    const job = await Job.findById(id).populate<{postedBy: IUser}>(
       "postedBy",
       "firstName lastName",
-    )) as any;
+    );
 
     if (!job) {
       return res.status(404).json({

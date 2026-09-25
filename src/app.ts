@@ -5,7 +5,8 @@ import express  from 'express';
 import connectDB from './config/database.js';
 import userRouter from './routes/user.route.js';
 import cookieParser from 'cookie-parser';
-import jobRouter from './routes/job.router.js'
+import jobRouter from './routes/job.router.js';
+import blogRouter from './routes/blog.router.js'
 
 dotenv.config();
 dns.setServers(['8.8.8.8', '8.8.4.4']);
@@ -20,7 +21,10 @@ app.use(cookieParser());
 app.use('/auth', userRouter);
 
 //Jobs routes
-app.use('/api/v1', jobRouter)
+app.use('/api/v1', jobRouter);
+
+//Blogs routes
+app.use('/api/v1', blogRouter)
 
 const port = Number(process.env.PORT);
 

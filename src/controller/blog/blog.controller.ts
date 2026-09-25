@@ -100,10 +100,12 @@ export const createBlog = async (req: RequestAuth, res: Response) => {
     }
 
     /* 
-    if(galleryResults.length > 0){
-        galleryResults.map((result) => {
-            await deleteFromCloudinary(result.publicId)
-        })
+    if(galleryResults){
+        await Promise.all(
+            galleryResults.map(async (result) => {
+                await deleteFromCloudinary(result.publicId).catch(err => console.error(err))
+            })
+        )
     }
     */
     return res.status(500).json({
